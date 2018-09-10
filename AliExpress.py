@@ -8,7 +8,7 @@ import threading
 
 #search_url = 'https://www.aliexpress.com/wholesale?catId=0'
 SEARCH_URL = 'https://www.aliexpress.com/wholesale?SortType=create_desc'
-min_price = '28'
+min_price = ''
 max_price = ''
 if min_price:
     SEARCH_URL += '&minPrice=' + min_price
@@ -97,7 +97,8 @@ def find_refund(search_product, brand, link_list, cond_result, cond_user):
         if test_page:
             link_list.clear()
             link_list.append(None)
-            cond_result.notifyAll()
+            with cond_result:
+                cond_result.notifyAll()
             break
             #return None
         products = soup.findAll('a',  attrs={'class': 'history-item product '})
@@ -138,7 +139,7 @@ def find_refund(search_product, brand, link_list, cond_result, cond_user):
                 with cond_result:
                     cond_result.notifyAll()
                 with cond_user:
-                    if not cond_user.wait(30):
+                    if not cond_user.wait(60):
                         exit()
             else:
                 print('brand fine!')

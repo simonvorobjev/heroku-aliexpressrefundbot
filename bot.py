@@ -54,11 +54,11 @@ def brand_reply(bot, update, user_data):
     #link = AliExpress.find_refund(user_data['product'], user_data['brand'], link_list, condition_result_ready, condition_user_ready)
     refund_thread.start()
     with condition_result_ready:
-        if (not refund_thread.is_alive()) or (not condition_result_ready.wait(20)):
+        if (not refund_thread.is_alive()) or (not condition_result_ready.wait(60)):
             bot.send_message(chat_id=update.message.chat_id, text=("Поиск завершен по таймауту."))
             user_data.clear()
             return ConversationHandler.END
-    if link_list[0] == 'None':
+    if link_list[0] == None:
         bot.send_message(chat_id=update.message.chat_id, text=("Больше ничего не найдено, поиск завершен."))
         user_data.clear()
         return ConversationHandler.END
@@ -74,11 +74,11 @@ def search_next(bot, update, user_data):
         with condition_user_ready:
             condition_user_ready.notifyAll()
         with condition_result_ready:
-            if (not refund_thread.is_alive()) or (not condition_result_ready.wait(20)):
+            if (not refund_thread.is_alive()) or (not condition_result_ready.wait(60)):
                 bot.send_message(chat_id=update.message.chat_id, text=("Поиск завершен по таймауту."))
                 user_data.clear()
                 return ConversationHandler.END
-        if link_list[0] == 'None':
+        if link_list[0] == None:
             bot.send_message(chat_id=update.message.chat_id, text=("Больше ничего не найдено, поиск завершен."))
             user_data.clear()
             return ConversationHandler.END
@@ -126,8 +126,8 @@ def main():
                             ]
         },
         fallbacks = [CommandHandler('cancel', cancel, pass_user_data=True)],
-        run_async_timeout = 30,
-        conversation_timeout = 30
+        run_async_timeout = 60,
+        conversation_timeout = 60
     )
     #find_handler = CommandHandler('find', FindRefund)
     dispatcher.add_handler(start_handler)
