@@ -49,6 +49,8 @@ def login_ali2():
     session_requests = requests.session()
     source_code = session_requests.post(LOGIN_URL, data=payload)
     plain_text = source_code.json()
+    if not 'st' in  plain_text['content']['data']:
+        return session_requests
     st = plain_text['content']['data']['st']
     source_code = session_requests.get(LOGIN_URL_2 + st)
     plain_text = source_code.text
