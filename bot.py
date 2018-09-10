@@ -7,7 +7,7 @@ import http.server
 import socketserver
 import os
 
-PRODUCT_CHOOSE, BRAND_CHOOSE, SEARCH_NEXT = range(3)
+PRODUCT_CHOOSE, BRAND_CHOOSE, PRICE_RANGE_CHOOSE, FILTER_WORDS_CHOOSE, SEARCH_NEXT = range(5)
 condition_result_ready = threading.Condition()
 condition_user_ready = threading.Condition()
 link_list = []
@@ -39,7 +39,45 @@ def begin(bot, update):
 def product_reply(bot, update, user_data):
     text = update.message.text
     user_data['product'] = text
-    update.message.reply_text('Поиск сохранен! Введите бренд:')
+    update.message.reply_text('Поиск сохранен! Введите диапазон цен в формате 10-30 (в долларах) (/skip чтобы пропустить ввод цен):')
+    return PRICE_RANGE_CHOOSE
+
+
+def price_range_reply(bot, update, user_data):
+    text = update.message.text
+    prices = text.split('-')
+    min_price = prices[0]
+    if not min_price:
+        min_price = ''
+    max_price = prices[1]
+    if not max_price:
+        max_price = ''
+    user_data['min_price'] = min_price
+    user_data['max_price'] = max_price
+    update.message.reply_text('Диапазон цен сохранен! Введите слова для фильтрации через запятую (например case,for,glass):')
+    return FILTER_WORDS_CHOOSE
+
+
+def skip_price_range_reply(bot, update, user_data):
+    user_data['min_price'] = ''
+    user_data['max_price'] = ''
+    update.message.reply_text('Диапазон не задан. Введите слова для фильтрации через запятую (например case,for,glass):')
+    return FILTER_WORDS_CHOOSE
+
+
+def filter_reply(bot, update, user_data):
+    text = update.message.text
+    filter_words = text.split(',')
+    if not filter_words:
+        filter_words = []
+    user_data['filter_words'] = filter_words
+    update.message.reply_text('Фильтры сохранены! Введите бренд:')
+    return BRAND_CHOOSE
+
+
+def skip_filter_reply(bot, update, user_data):
+    user_data['filter_words'] = []
+    update.message.reply_text('Фильтры не заданы. Введите бренд:')
     return BRAND_CHOOSE
 
 
@@ -49,9 +87,7 @@ def brand_reply(bot, update, user_data):
     update.message.reply_text('Бренд сохранен! Начинаем поиск!')
     global refund_thread
     refund_thread = threading.Thread(name='refund_thread',
-                                     target=AliExpress.find_refund, args=(user_data['product'],
-                                                                          user_data['brand'], link_list, condition_result_ready, condition_user_ready))
-    #link = AliExpress.find_refund(user_data['product'], user_data['brand'], link_list, condition_result_ready, condition_user_ready)
+                                     target=AliExpress.find_refund, args=(user_data, link_list, condition_result_ready, condition_user_ready))
     refund_thread.start()
     with condition_result_ready:
         if (not refund_thread.is_alive()) or (not condition_result_ready.wait(60)):
@@ -120,6 +156,20 @@ def main():
                                            brand_reply,
                                            pass_user_data=True),
                             ],
+            PRICE_RANGE_CHOOSE: [MessageHandler(Filters.text,
+                                          price_range_reply,
+                                          pass_user_data=True),
+                                 CommandHandler('skip',
+                                                skip_price_range_reply,
+                                                pass_user_data=True),
+                           ],
+            FILTER_WORDS_CHOOSE: [MessageHandler(Filters.text,
+                                          filter_reply,
+                                          pass_user_data=True),
+                                 CommandHandler('skip',
+                                                skip_filter_reply,
+                                                pass_user_data=True),
+                           ],
             SEARCH_NEXT: [MessageHandler(Filters.text,
                                          search_next,
                                          pass_user_data=True),
@@ -129,13 +179,10 @@ def main():
         run_async_timeout = 60,
         conversation_timeout = 60
     )
-    #find_handler = CommandHandler('find', FindRefund)
     dispatcher.add_handler(start_handler)
     dispatcher.add_handler(help_handler)
     dispatcher.add_handler(conv_handler)
     dispatcher.add_handler(text_handler)
-    #dispatcher.add_handler(find_handler)
-    #dispatcher.add_handler(echo_handler)
     updater.start_polling(poll_interval = 1.0,timeout=20, clean=True)
 
 

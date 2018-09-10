@@ -7,16 +7,6 @@ import json
 import threading
 
 #search_url = 'https://www.aliexpress.com/wholesale?catId=0'
-SEARCH_URL = 'https://www.aliexpress.com/wholesale?SortType=create_desc'
-min_price = ''
-max_price = ''
-if min_price:
-    SEARCH_URL += '&minPrice=' + min_price
-if max_price:
-    SEARCH_URL += '&maxPrice=' + max_price
-SEARCH_URL += '&SearchText='
-SEARCH_PRODUCT = 'mi band 3'
-BRAND = 'xiaomi'
 
 def login_ali():
     driver = webdriver.Chrome('C:\\temp\\chromedriver.exe')
@@ -84,8 +74,18 @@ def login_ali2():
     return session_requests
 
 
-def find_refund(search_product, brand, link_list, cond_result, cond_user):
-    search_url = SEARCH_URL + search_product
+def find_refund(user_data, link_list, cond_result, cond_user):
+    SEARCH_URL = 'https://www.aliexpress.com/wholesale?SortType=create_desc'
+    #min_price = '10'
+    #max_price = ''
+    if user_data['min_price']:
+        SEARCH_URL += '&minPrice=' + user_data['min_price']
+    if user_data['max_price']:
+        SEARCH_URL += '&maxPrice=' + user_data['max_price']
+    SEARCH_URL += '&SearchText='
+    #SEARCH_PRODUCT = 'mi band 3'
+    #BRAND = 'xiaomi'
+    search_url = SEARCH_URL + user_data['product']
     s = login_ali2()
     for page in range(1, 99):
         request_url = search_url + '&page=' + str(page)
@@ -120,18 +120,17 @@ def find_refund(search_product, brand, link_list, cond_result, cond_user):
             prod_page = requests.get(p).text
             soup_prod = BeautifulSoup(prod_page, 'html.parser')
             title = soup_prod.find('h1', attrs={'class': 'product-name'})
-            if (title):
-                if (' for ' in title.text.lower()):
-                    print('"for" found, so this is not our item!')
-                    continue
-                    #exit()
-            #print(title.text)
+            if title:
+                for filtered_word in user_data['filter_words']:
+                    if filtered_word.lower() in title.text.lower():
+                        print('filtered word found, so this is not our item!')
+                        continue
             brand_li = soup_prod.find('li', attrs={'id': 'product-prop-2'})
             if not brand_li:
                 print('No brand!')
                 continue
             child = brand_li.findChild("span", attrs={'class': 'propery-des'})
-            if child.text.lower() != brand.lower():
+            if child.text.lower() != user_data['brand'].lower():
                 #return p
                 print(p)
                 link_list.clear()
