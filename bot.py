@@ -3,10 +3,9 @@ import logging
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, RegexHandler
 import threading
 import AliExpress
-from flask import Flask
+import http.server
+import socketserver
 import os
-
-app = Flask(__name__, static_folder='static')
 
 PRODUCT_CHOOSE, BRAND_CHOOSE, SEARCH_NEXT = range(3)
 condition_result_ready = threading.Condition()
@@ -35,13 +34,6 @@ def begin(bot, update):
     bot.send_message(chat_id=update.message.chat_id, text='Здравствуйте! Для начала необходимо будет ввести что будем '
                                                           'искать и какой бренд имеет продукт. Введите что будем искать:')
     return PRODUCT_CHOOSE
-    #product = update.message.text
-    #bot.send_message(chat_id=update.message.chat_id, text='Введи бренд:')
-    #brand = update.message.text
-    #link_list = []
-    #t = threading.Thread(target=AliExpress.find_refund, args=(product, brand, link_list))
-
-    #bot.send_message(chat_id=update.message.chat_id, text=update.message.text)
 
 
 def product_reply(bot, update, user_data):
@@ -149,9 +141,11 @@ def main():
 
 if __name__ == '__main__':
     try:
-        app.debug = True
         port = int(os.environ.get('PORT',31590))
-        app.run(host='0.0.0.0', port=port)
+        Handler = http.server.SimpleHTTPRequestHandler
+        with socketserver.TCPServer(('0.0.0.0', port), Handler) as httpd:
+            print("serving at port", port)
+            threading.Thread(target=httpd.serve_forever).start()
         main()
     except KeyboardInterrupt:
         exit()
