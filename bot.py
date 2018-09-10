@@ -133,7 +133,9 @@ def main():
                                          pass_user_data=True),
                             ]
         },
-        fallbacks = [CommandHandler('cancel', cancel, pass_user_data=True)]
+        fallbacks = [CommandHandler('cancel', cancel, pass_user_data=True)],
+        run_async_timeout = 30,
+        conversation_timeout = 30
     )
     #find_handler = CommandHandler('find', FindRefund)
     dispatcher.add_handler(start_handler)
@@ -142,7 +144,7 @@ def main():
     dispatcher.add_handler(text_handler)
     #dispatcher.add_handler(find_handler)
     #dispatcher.add_handler(echo_handler)
-    updater.start_polling()
+    updater.start_polling(poll_interval = 1.0,timeout=20, clean=True)
 
 
 if __name__ == '__main__':
