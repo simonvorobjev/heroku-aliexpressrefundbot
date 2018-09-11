@@ -4,7 +4,6 @@ import re
 from selenium import webdriver
 from time import sleep
 import json
-import threading
 
 #search_url = 'https://www.aliexpress.com/wholesale?catId=0'
 
