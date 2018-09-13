@@ -5,8 +5,6 @@ from telegram.ext.dispatcher import run_async
 import threading, queue
 import AliExpress
 import sys
-#import http.server
-#import socketserver
 import os
 
 updater = Updater(token='600467031:AAGKCCUCFzWMz4DQ2axfqo4Xz76S31yUCLc')
@@ -14,10 +12,9 @@ bot_is_busy = queue.Queue()
 people_waiting = queue.Queue()
 
 PRODUCT_CHOOSE, BRAND_CHOOSE, PRICE_RANGE_CHOOSE, FILTER_WORDS_CHOOSE, SEARCH_NEXT = range(5)
-condition_result_ready = threading.Condition()
-condition_user_ready = threading.Condition()
-link_list = []
-refund_thread = ''
+condition_result_ready_dict = {}
+condition_user_ready_dict = {}
+link_dict = {}
 
 
 def start(bot, update):
@@ -55,7 +52,7 @@ def echo(bot, update):
 def begin(bot, update):
     global bot_is_busy
     global people_waiting
-    if not bot_is_busy.empty():
+    if False:
         bot.send_message(chat_id=update.message.chat_id, text=("К сожалению, я уже ищу информацию другому клиенту,"
                                                                "поддержка многопоточности будет чуть позже, а пока "
                                                                "подождите сообщения когда я освобожусь!"))
@@ -111,7 +108,6 @@ def skip_filter_reply(bot, update, user_data):
     return BRAND_CHOOSE
 
 
-@run_async
 def brand_reply(bot, update, user_data):
     global bot_is_busy
     global people_waiting
@@ -120,19 +116,21 @@ def brand_reply(bot, update, user_data):
     text = update.message.text
     user_data['brand'] = text
     update.message.reply_text('Бренд сохранен! Начинаем поиск!')
-    global refund_thread
-    refund_thread = threading.Thread(name='refund_thread',
-                                     target=AliExpress.find_refund, args=(user_data, link_list, condition_result_ready, condition_user_ready))
-    refund_thread.start()
-    with condition_result_ready:
-        if (not refund_thread.is_alive()) or (not condition_result_ready.wait(60)):
+    link_dict[update.message.chat_id] = []
+    condition_result_ready_dict[update.message.chat_id] = threading.Condition()
+    condition_user_ready_dict[update.message.chat_id] = threading.Condition()
+    threading.Thread(name='refund_thread',
+                     target=AliExpress.find_refund,
+                     args=(user_data, link_dict[update.message.chat_id], condition_result_ready_dict[update.message.chat_id], condition_user_ready_dict[update.message.chat_id])).start()
+    with condition_result_ready_dict[update.message.chat_id]:
+        if not condition_result_ready_dict[update.message.chat_id].wait(60):
             bot.send_message(chat_id=update.message.chat_id, text="Поиск завершен по таймауту.")
             user_data.clear()
             while not people_waiting.empty():
                 bot.send_message(chat_id=people_waiting.get(), text="Я свободен, можешь начать поиск!")
             bot_is_busy.get()
             return ConversationHandler.END
-    if link_list[0] is None:
+    if link_dict[update.message.chat_id][0] is None:
         bot.send_message(chat_id=update.message.chat_id, text="Больше ничего не найдено, поиск завершен.")
         user_data.clear()
         while not people_waiting.empty():
@@ -140,42 +138,42 @@ def brand_reply(bot, update, user_data):
         bot_is_busy.get()
         return ConversationHandler.END
     else:
-        bot.send_message(chat_id=update.message.chat_id, text=("Ну как тебе вот это? " + link_list[0]))
-        bot.send_message(chat_id=update.message.chat_id, text=("Искать дальше? Да/Нет"))
+        bot.send_message(chat_id=update.message.chat_id, text="Ну как тебе вот это? " + link_dict[update.message.chat_id][0])
+        bot.send_message(chat_id=update.message.chat_id, text="Искать дальше? Да/Нет")
         return SEARCH_NEXT
+
 
 @run_async
 def search_next(bot, update, user_data):
     global bot_is_busy
     global people_waiting
     text = update.message.text
-    global refund_thread
     if bot_is_busy.empty():
         bot_is_busy.put(update.message.chat_id)
     if text.lower() == 'да':
-        with condition_user_ready:
-            condition_user_ready.notifyAll()
-        with condition_result_ready:
-            if (not refund_thread.is_alive()) or (not condition_result_ready.wait(60)):
-                bot.send_message(chat_id=update.message.chat_id, text=("Поиск завершен по таймауту."))
+        with condition_user_ready_dict[update.message.chat_id]:
+            condition_user_ready_dict[update.message.chat_id].notifyAll()
+        with condition_result_ready_dict[update.message.chat_id]:
+            if not condition_result_ready_dict[update.message.chat_id].wait(60):
+                bot.send_message(chat_id=update.message.chat_id, text="Поиск завершен по таймауту.")
                 user_data.clear()
                 while not people_waiting.empty():
                     bot.send_message(chat_id=people_waiting.get(), text="Я свободен, можешь начать поиск!")
                 bot_is_busy.get()
                 return ConversationHandler.END
-        if link_list[0] is None:
-            bot.send_message(chat_id=update.message.chat_id, text=("Больше ничего не найдено, поиск завершен."))
+        if link_dict[update.message.chat_id][0] is None:
+            bot.send_message(chat_id=update.message.chat_id, text="Больше ничего не найдено, поиск завершен.")
             user_data.clear()
             while not people_waiting.empty():
                 bot.send_message(chat_id=people_waiting.get(), text="Я свободен, можешь начать поиск!")
             bot_is_busy.get()
             return ConversationHandler.END
         else:
-            bot.send_message(chat_id=update.message.chat_id, text=("Ну как тебе вот это? " + link_list[0]))
-            bot.send_message(chat_id=update.message.chat_id, text=("Искать дальше? Да/Нет"))
+            bot.send_message(chat_id=update.message.chat_id, text="Ну как тебе вот это? " + link_dict[update.message.chat_id][0])
+            bot.send_message(chat_id=update.message.chat_id, text="Искать дальше? Да/Нет")
             return SEARCH_NEXT
     else:
-        bot.send_message(chat_id=update.message.chat_id, text=("Хорошо, поиск завершен."))
+        bot.send_message(chat_id=update.message.chat_id, text="Хорошо, поиск завершен.")
         user_data.clear()
         while not people_waiting.empty():
             bot.send_message(chat_id=people_waiting.get(), text="Я свободен, можешь начать поиск!")
@@ -213,7 +211,6 @@ def main():
     iddqd_handler = CommandHandler('iddqd', iddqd)
     idfa_handler = CommandHandler('idfa', idfa)
     text_handler = MessageHandler(Filters.text, text_reply, pass_user_data=True)
-    #echo_handler = MessageHandler(Filters.text, echo)
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('find', begin)],
         states={
@@ -263,11 +260,6 @@ def main():
 
 if __name__ == '__main__':
     try:
-        #port = int(os.environ.get('PORT',31590))
-        #Handler = http.server.SimpleHTTPRequestHandler
-        #with socketserver.TCPServer(('0.0.0.0', port), Handler) as httpd:
-        #    print("serving at port", port)
-        #    threading.Thread(target=httpd.serve_forever).start()
         main()
     except KeyboardInterrupt:
         exit()
