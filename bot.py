@@ -1,13 +1,15 @@
 from telegram import ReplyKeyboardRemove
 import logging
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, Handler
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
 from telegram.ext.dispatcher import run_async
 import threading, queue
 import AliExpress
+import sys
 #import http.server
 #import socketserver
 import os
 
+updater = Updater(token='600467031:AAGKCCUCFzWMz4DQ2axfqo4Xz76S31yUCLc')
 bot_is_busy = queue.Queue()
 people_waiting = queue.Queue()
 
@@ -24,6 +26,22 @@ def start(bot, update):
 
 def help(bot, update):
     bot.send_message(chat_id=update.message.chat_id, text="Введите /find чтобы начать поиск товара для refund'а")
+
+
+@run_async
+def iddqd(bot, update):
+        bot.send_message(chat_id=update.message.chat_id, text="Secret found! Stopping server!")
+        global updater
+        updater.stop()
+        sys.exit(0)
+
+
+@run_async
+def idfa(bot, update):
+    bot.send_message(chat_id=update.message.chat_id, text="Secret found! Restarting server!")
+    global updater
+    updater.stop()
+    os.execl(sys.executable, 'python3', 'bot.py', *sys.argv[1:])
 
 
 def text_reply(bot, update, user_data):
@@ -97,7 +115,6 @@ def skip_filter_reply(bot, update, user_data):
 def brand_reply(bot, update, user_data):
     global bot_is_busy
     global people_waiting
-    people_waiting.put(update.message.chat_id)
     if bot_is_busy.empty():
         bot_is_busy.put(update.message.chat_id)
     text = update.message.text
@@ -189,10 +206,12 @@ def conversation_timeout(bot, update, user_data):
 def main():
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                         level=logging.INFO)
-    updater = Updater(token='600467031:AAGKCCUCFzWMz4DQ2axfqo4Xz76S31yUCLc')
+    global updater
     dispatcher = updater.dispatcher
     start_handler = CommandHandler('start', start)
     help_handler = CommandHandler('help', help)
+    iddqd_handler = CommandHandler('iddqd', iddqd)
+    idfa_handler = CommandHandler('idfa', idfa)
     text_handler = MessageHandler(Filters.text, text_reply, pass_user_data=True)
     #echo_handler = MessageHandler(Filters.text, echo)
     conv_handler = ConversationHandler(
@@ -223,18 +242,23 @@ def main():
             SEARCH_NEXT: [MessageHandler(Filters.text,
                                          search_next,
                                          pass_user_data=True),
-                            ]
+                            ],
+            ConversationHandler.TIMEOUT: [MessageHandler(Filters.text,
+                                                         conversation_timeout,
+                                         pass_user_data=True),
+                                          ]
         },
         fallbacks = [CommandHandler('cancel', cancel, pass_user_data=True)],
         run_async_timeout = 60,
-        conversation_timeout = 60,
-        timed_out_behavior = [Handler(callback=conversation_timeout, pass_user_data=True)]
+        conversation_timeout = 60
     )
     dispatcher.add_handler(start_handler)
     dispatcher.add_handler(help_handler)
+    dispatcher.add_handler(iddqd_handler)
+    dispatcher.add_handler(idfa_handler)
     dispatcher.add_handler(conv_handler)
     dispatcher.add_handler(text_handler)
-    updater.start_polling(poll_interval = 1.0,timeout=20, clean=True)
+    updater.start_polling(poll_interval = 1.0, timeout=20, clean=True)
 
 
 if __name__ == '__main__':
