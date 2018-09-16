@@ -4,8 +4,12 @@ import re
 from selenium import webdriver
 from time import sleep
 import json
+import time
 
 #search_url = 'https://www.aliexpress.com/wholesale?catId=0'
+
+start_time = None
+s = None
 
 def login_ali():
     driver = webdriver.Chrome('C:\\temp\\chromedriver.exe')
@@ -74,6 +78,8 @@ def login_ali2():
 
 
 def find_refund(user_data, link_list, cond_result, cond_user):
+    global start_time
+    global s
     SEARCH_URL = 'https://www.aliexpress.com/wholesale?SortType=create_desc'
     #min_price = '10'
     #max_price = ''
@@ -85,8 +91,14 @@ def find_refund(user_data, link_list, cond_result, cond_user):
     #SEARCH_PRODUCT = 'mi band 3'
     #BRAND = 'xiaomi'
     search_url = SEARCH_URL + user_data['product']
-    s = login_ali2()
-    for page in range(1, 99):
+    if not start_time:
+        start_time = time.time()
+        s = login_ali2()
+    current_time = time.time()
+    if start_time - current_time > 10*60:
+        s = login_ali2()
+        start_time = time.time()
+    for page in range(1, 10):
         request_url = search_url + '&page=' + str(page)
         print(request_url)
         r = s.get(request_url)
@@ -118,15 +130,20 @@ def find_refund(user_data, link_list, cond_result, cond_user):
                 continue'''
             prod_page = requests.get(p).text
             soup_prod = BeautifulSoup(prod_page, 'html.parser')
+            filter_found = False
             title = soup_prod.find('h1', attrs={'class': 'product-name'})
             if title:
-                for filtered_word in user_data['filter_words']:
-                    if filtered_word.lower() in title.text.lower():
-                        print('filtered word found, so this is not our item!')
-                        continue
+                if 'filter_words' in user_data:
+                    for filtered_word in user_data['filter_words']:
+                        if filtered_word.lower() in title.text.lower():
+                        #print('filtered word found, so this is not our item!')
+                            filter_found = True
+                            break
+            if filter_found:
+                continue
             brand_li = soup_prod.find('li', attrs={'id': 'product-prop-2'})
             if not brand_li:
-                print('No brand!')
+                #print('No brand!')
                 continue
             child = brand_li.findChild("span", attrs={'class': 'propery-des'})
             if child.text.lower() != user_data['brand'].lower():
@@ -137,10 +154,14 @@ def find_refund(user_data, link_list, cond_result, cond_user):
                 with cond_result:
                     cond_result.notifyAll()
                 with cond_user:
-                    if not cond_user.wait(60):
+                    if not cond_user.wait(120):
                         exit()
-            else:
-                print('brand fine!')
+            #else:
+            #    print('brand fine!')
+    link_list.clear()
+    link_list.append(None)
+    with cond_result:
+        cond_result.notifyAll()
 
 
 if __name__ == '__main__':
